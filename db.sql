@@ -15,15 +15,15 @@ CREATE TABLE user_info(
 );
 
 /* Create table user_info Id as primary key and movie_name,release_date,views,likes,run_time,description,image_path,video_path */
-CREATE TABLE movie_info(
-    Id INT NOT NULL AUTO_INCREMENT,
-    movie_name VARCHAR(20) NOT NULL,
-    release_date VARCHAR(20) NOT NULL,
-    views INT NOT NULL,
-    likes INT NOT NULL,
-    run_time INT NOT NULL,
-    description VARCHAR(20) NOT NULL,
-    image_path VARCHAR(20) NOT NULL,
-    video_path VARCHAR(20) NOT NULL,
-    PRIMARY KEY(Id)
+CREATE TABLE movie_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  movie_name VARCHAR(255) NOT NULL,
+  release_date VARCHAR(100),
+  views INT DEFAULT 0,
+  likes INT DEFAULT 0,
+  run_time INT,
+  description TEXT,
+  image_path VARCHAR(255),
+  video_path VARCHAR(255)
 );
+
