@@ -43,7 +43,7 @@ if(!isset($_SESSION['loggedin']) || $_SESSION['loggedin']!=true)
                   include 'database_connectivity.php';
                   $Id = $_SESSION['Id'];
                   $quer = "SELECT * FROM user_info WHERE Id = '$Id' ";
-                  $quer2 = "SELECT * FROM movie_data WHERE Id in (SELECT Id from movie_info where Id = '$Id') ";
+                  $quer2 = "SELECT * FROM movie_data WHERE Id in (SELECT Id from movie_data where Id = '$Id') ";
                   $latest="SELECT * FROM movie_data ORDER BY Id DESC LIMIT 1";
                   $check = mysqli_query($connec,$quer);
                   $get_latest=mysqli_query($connec,$latest);
