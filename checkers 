@@ -81,7 +81,32 @@ async def get_last_week_metrics(db: AsyncSession):
     return result.scalars().all()
 
 
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..database import get_db
+from .. import schemas, crud
+
+router = APIRouter()
+
+
+@router.post("/metrics")
+async def receive_metrics(
+    data: schemas.ServerMetricsCreate,
+    db: AsyncSession = Depends(get_db)
+):
+
+    result = await crud.create_metrics(db, data)
+
+    return {"status": "stored", "id": result.id}
+
+
+@router.get("/history")
+async def get_history(db: AsyncSession = Depends(get_db)):
+
+    data = await crud.get_last_week_metrics(db)
+
+    return data
 
 
 
