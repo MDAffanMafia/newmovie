@@ -40,3 +40,13 @@ class ServerMetrics(Base):
     disk_usage = Column(Float)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+from pydantic import BaseModel
+
+
+class ServerMetricsCreate(BaseModel):
+    server_name: str
+    cpu_usage: float
+    memory_usage: float
+    disk_usage: float
