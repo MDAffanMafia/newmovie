@@ -52,6 +52,34 @@ class ServerMetricsCreate(BaseModel):
     disk_usage: float
 
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from . import models
+
+
+async def create_metrics(db: AsyncSession, metrics):
+
+    db_metric = models.ServerMetrics(**metrics.dict())
+
+    db.add(db_metric)
+
+    await db.commit()
+
+    await db.refresh(db_metric)
+
+    return db_metric
+
+
+async def get_last_week_metrics(db: AsyncSession):
+
+    query = select(models.ServerMetrics).order_by(
+        models.ServerMetrics.created_at.desc()
+    ).limit(10000)
+
+    result = await db.execute(query)
+
+    return result.scalars().all()
+
 
 
 
