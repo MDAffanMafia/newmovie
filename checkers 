@@ -50,3 +50,5 @@ class ServerMetricsCreate(BaseModel):
     cpu_usage: float
     memory_usage: float
     disk_usage: float
+
+
