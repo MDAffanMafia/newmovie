@@ -108,7 +108,14 @@ async def get_history(db: AsyncSession = Depends(get_db)):
 
     return data
 
+from fastapi import FastAPI
+from .router import router
 
+app = FastAPI(
+    title="Infra Monitoring API"
+)
+
+app.include_router(router)
 
 
 
