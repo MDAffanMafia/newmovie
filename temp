@@ -1,0 +1,96 @@
+from django.http import JsonResponse
+from .models import ServerDetails, CertificateTypes, CertificateName, CertificateSubDetails
+
+
+def build_cert_structure(server_id):
+    structure = {}
+
+    cert_types = CertificateTypes.objects.filter(server_id=server_id).prefetch_related(
+        "certificatename_set__certificatesubdetails_set"
+    )
+
+    for ct in cert_types:
+        ct_name = ct.certificateType
+        structure[ct_name] = {}
+
+        for cn in ct.certificatename_set.all():
+            cn_name = cn.certificateName
+            structure[ct_name][cn_name] = {}
+
+            # assuming 1 subdetail per cert (if multiple, adjust)
+            sub = cn.certificatesubdetails_set.first()
+            if sub:
+                structure[ct_name][cn_name] = {
+                    "alias": sub.alias,
+                    "fingerprint": sub.fingerprint,
+                    "fingerprintType": sub.fingerprintType,
+                    "validFrom": sub.validFrom,
+                    "validTo": sub.validTo,
+                    "owner": sub.owner,
+                }
+
+    return structure
+
+
+def compare_cert_structure(pr, dr):
+    result = {
+        "missing_in_pr": [],
+        "missing_in_dr": [],
+        "property_mismatches": []
+    }
+
+    pr_types = set(pr.keys())
+    dr_types = set(dr.keys())
+
+    # Missing certificate types
+    result["missing_in_pr"].extend(list(dr_types - pr_types))
+    result["missing_in_dr"].extend(list(pr_types - dr_types))
+
+    common_types = pr_types & dr_types
+
+    for ct in common_types:
+        pr_names = set(pr[ct].keys())
+        dr_names = set(dr[ct].keys())
+
+        # Missing cert names
+        for name in (dr_names - pr_names):
+            result["missing_in_pr"].append(f"{ct} -> {name}")
+
+        for name in (pr_names - dr_names):
+            result["missing_in_dr"].append(f"{ct} -> {name}")
+
+        common_names = pr_names & dr_names
+
+        for name in common_names:
+            pr_props = pr[ct][name]
+            dr_props = dr[ct][name]
+
+            for key in pr_props:
+                # 🔥 Ignore fields if needed
+                if key in ["validFrom", "validTo"]:  # optional exclude
+                    continue
+
+                if pr_props.get(key) != dr_props.get(key):
+                    result["property_mismatches"].append({
+                        "path": f"{ct} -> {name}",
+                        "property": key,
+                        "pr": pr_props.get(key),
+                        "dr": dr_props.get(key)
+                    })
+
+    return result
+
+
+def compare_certificates(request):
+    pr_server_id = request.GET.get("pr")
+    dr_server_id = request.GET.get("dr")
+
+    if not pr_server_id or not dr_server_id:
+        return JsonResponse({"error": "Provide pr and dr server ids"}, status=400)
+
+    pr_structure = build_cert_structure(pr_server_id)
+    dr_structure = build_cert_structure(dr_server_id)
+
+    result = compare_cert_structure(pr_structure, dr_structure)
+
+    return JsonResponse(result, safe=False)
