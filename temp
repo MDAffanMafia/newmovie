@@ -94,3 +94,207 @@ def compare_certificates(request):
     result = compare_cert_structure(pr_structure, dr_structure)
 
     return JsonResponse(result, safe=False)
+
+
+
+
+
+-- =========================================
+-- 1. LAYERS TABLE
+-- =========================================
+
+CREATE TABLE server_layers (
+    layer_id INT AUTO_INCREMENT PRIMARY KEY,
+    layer_name VARCHAR(100) NOT NULL UNIQUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_layer_name (layer_name)
+);
+
+
+
+-- =========================================
+-- 2. APPLICATION STATUS / SERVERS TABLE
+-- =========================================
+
+CREATE TABLE application_status (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    serverHostName VARCHAR(100),
+    ip VARCHAR(50) NOT NULL UNIQUE,
+
+    LastSeen DATETIME,
+
+    layer_id INT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_application_layer
+        FOREIGN KEY (layer_id)
+        REFERENCES server_layers(layer_id)
+        ON DELETE SET NULL,
+
+    INDEX idx_ip (ip),
+    INDEX idx_lastseen (LastSeen),
+    INDEX idx_layer_id (layer_id)
+);
+
+
+
+-- =========================================
+-- 3. BROKERS TABLE
+-- =========================================
+
+CREATE TABLE brokers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    serverid INT NOT NULL,
+
+    brokerName VARCHAR(100),
+
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    status VARCHAR(50),
+
+    port INT,
+
+    isUp INT,
+
+    processCount INT,
+
+    timeout INT,
+
+    closewait INT,
+
+    established INT,
+
+    udpPort INT,
+
+    CONSTRAINT fk_broker_server
+        FOREIGN KEY (serverid)
+        REFERENCES application_status(id)
+        ON DELETE CASCADE,
+
+    INDEX idx_serverid (serverid),
+    INDEX idx_brokername (brokerName),
+    INDEX idx_status (status),
+    INDEX idx_updated_at (updated_at)
+);
+
+
+
+-- =========================================
+-- 4. BROKER RESTART TABLE
+-- =========================================
+
+CREATE TABLE brokerrestartTime (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    serverId INT NOT NULL,
+
+    cacheHitTime VARCHAR(100),
+
+    restartedAt VARCHAR(100),
+
+    cacheHits INT,
+
+    restartedAfter5M INT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_restart_server
+        FOREIGN KEY (serverId)
+        REFERENCES application_status(id)
+        ON DELETE CASCADE,
+
+    INDEX idx_serverId (serverId),
+    INDEX idx_restartedAt (restartedAt)
+);
+
+
+
+-- =========================================
+-- 5. ISOLATOR STATUS TABLE
+-- =========================================
+
+CREATE TABLE IsolatorStatusCount (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    serverId INT NOT NULL,
+
+    port INT,
+
+    isUp INT,
+
+    upCount INT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_isolator_server
+        FOREIGN KEY (serverId)
+        REFERENCES application_status(id)
+        ON DELETE CASCADE,
+
+    INDEX idx_serverId (serverId),
+    INDEX idx_port (port),
+    INDEX idx_isup (isUp)
+);
+
+
+
+-- =========================================
+-- 6. POINTINGS TABLE
+-- =========================================
+
+CREATE TABLE pointingsServer (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    serverid INT NOT NULL,
+
+    ChannelName VARCHAR(50),
+
+    pointingip VARCHAR(50),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_pointing_server
+        FOREIGN KEY (serverid)
+        REFERENCES application_status(id)
+        ON DELETE CASCADE,
+
+    INDEX idx_serverid (serverid),
+    INDEX idx_channelname (ChannelName),
+    INDEX idx_pointingip (pointingip)
+);
+
+
+
+-- =========================================
+-- 7. USER LOGS TABLE
+-- =========================================
+
+CREATE TABLE all_userlogs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    server_id INT NOT NULL,
+
+    broker_name VARCHAR(100),
+
+    eg_name VARCHAR(100),
+
+    error_message TEXT,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_logs_server
+        FOREIGN KEY (server_id)
+        REFERENCES application_status(id)
+        ON DELETE CASCADE,
+
+    INDEX idx_server_id (server_id),
+    INDEX idx_broker_name (broker_name),
+    INDEX idx_eg_name (eg_name),
+    INDEX idx_created_at (created_at)
+);
