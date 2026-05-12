@@ -298,3 +298,136 @@ CREATE TABLE all_userlogs (
     INDEX idx_eg_name (eg_name),
     INDEX idx_created_at (created_at)
 );
+
+
+from datetime import timedelta
+from sqlalchemy import select
+
+from app.models_history import (
+    ApplicationStatusHistory,
+    BrokerHistory,
+    PointingsHistory,
+    IsolatorHistory,
+    BrokerRestartHistory
+)
+
+from app.models import Layer
+
+
+async def get_layer_snapshot(
+    db,
+    layer_name,
+    snapshot_time
+):
+
+    start_time = snapshot_time.replace(
+        second=0,
+        microsecond=0
+    )
+
+    end_time = start_time + timedelta(minutes=1)
+
+    # Step 1 — Fetch all servers for layer + minute
+
+    server_query = (
+        select(ApplicationStatusHistory)
+        .join(
+            Layer,
+            ApplicationStatusHistory.layer_id == Layer.layer_id
+        )
+        .where(
+            Layer.layer_name == layer_name,
+            ApplicationStatusHistory.creationTime >= start_time,
+            ApplicationStatusHistory.creationTime < end_time
+        )
+    )
+
+    server_result = await db.execute(server_query)
+
+    servers = server_result.scalars().all()
+
+    if not servers:
+        return {
+            "message": "No snapshot found"
+        }
+
+    server_ids = [s.id for s in servers]
+
+    # Step 2 — Fetch all child data
+
+    broker_result = await db.execute(
+        select(BrokerHistory).where(
+            BrokerHistory.serverid.in_(server_ids)
+        )
+    )
+
+    pointing_result = await db.execute(
+        select(PointingsHistory).where(
+            PointingsHistory.serverid.in_(server_ids)
+        )
+    )
+
+    isolator_result = await db.execute(
+        select(IsolatorHistory).where(
+            IsolatorHistory.serverid.in_(server_ids)
+        )
+    )
+
+    restart_result = await db.execute(
+        select(BrokerRestartHistory).where(
+            BrokerRestartHistory.serverid.in_(server_ids)
+        )
+    )
+
+    brokers = broker_result.scalars().all()
+    pointings = pointing_result.scalars().all()
+    isolators = isolator_result.scalars().all()
+    restarts = restart_result.scalars().all()
+
+    # Step 3 — Group data
+
+    server_map = {}
+
+    for s in servers:
+        server_map[s.id] = {
+            "server_id": s.id,
+            "hostname": s.serverHostName,
+            "ip": s.ip,
+            "creationTime": s.creationTime,
+            "brokers": [],
+            "pointings": [],
+            "isolators": [],
+            "restarts": []
+        }
+
+    for b in brokers:
+        server_map[b.serverid]["brokers"].append({
+            "brokerName": b.brokerName,
+            "status": b.status,
+            "port": b.port
+        })
+
+    for p in pointings:
+        server_map[p.serverid]["pointings"].append({
+            "channelName": p.ChannelName,
+            "pointingip": p.pointingip
+        })
+
+    for i in isolators:
+        server_map[i.serverid]["isolators"].append({
+            "port": i.port,
+            "isUp": i.isUp,
+            "upCount": i.upCount
+        })
+
+    for r in restarts:
+        server_map[r.serverid]["restarts"].append({
+            "restartedAt": r.restartedAt
+        })
+
+    return {
+        "layer_name": layer_name,
+        "snapshot_time": start_time,
+        "servers": list(server_map.values())
+    }
+
