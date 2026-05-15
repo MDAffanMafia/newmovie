@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+your_app.modelsfrom django.http import JsonResponse
 from .models import ServerDetails, CertificateTypes, CertificateName, CertificateSubDetails
 
 
@@ -430,4 +430,79 @@ async def get_layer_snapshot(
         "snapshot_time": start_time,
         "servers": list(server_map.values())
     }
+
+
+
+import os
+import django
+import csv
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "your_project.settings")
+django.setup()
+
+from your_app.models import (
+    ServiceDetails,
+    ServiceAdditionalDetails
+)
+
+with open("services_export.csv", mode="w", newline="") as file:
+
+    writer = csv.writer(file)
+
+    # Header
+    writer.writerow([
+        "Layer",
+        "Server IP",
+        "Broker",
+        "Broker Port",
+        "EG Name",
+        "Service Name",
+        "Service Status",
+        "Generic Name",
+        "Additional Instances",
+        "Thread Capacity",
+        "Thread In Use",
+        "Timeout",
+        "API Type",
+        "Deploy Date",
+        "Last Edit"
+    ])
+
+    services = ServiceDetails.objects.select_related(
+        'eg',
+        'eg__broker',
+        'eg__broker__server',
+        'eg__broker__server__layer'
+    )
+
+    for service in services:
+
+        eg = service.eg
+        broker = eg.broker
+        server = broker.server
+        layer = server.layer
+
+        additional = ServiceAdditionalDetails.objects.filter(
+            service=service
+        ).first()
+
+        writer.writerow([
+            layer.layer_name,
+            server.serverIP,
+            broker.brokerName,
+            broker.tdpPort,
+            eg.egName,
+            service.serviceName,
+            service.serviceStatus,
+            service.genericName,
+            service.additionalInstances,
+            service.threadCapacity,
+            service.threadInUse,
+            service.timeout,
+            service.apiType,
+            additional.serviceDeployDate if additional else "",
+            additional.serviceLastEdit if additional else ""
+        ])
+
+print("CSV Exported Successfully")
 
