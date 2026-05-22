@@ -506,3 +506,41 @@ with open("services_export.csv", mode="w", newline="") as file:
 
 print("CSV Exported Successfully")
 
+
+
+import pymysql
+
+conn = pymysql.connect(
+    host="localhost",
+    user="your_username",
+    password="your_password",
+    database="your_database",
+    port=3306
+)
+
+try:
+    with conn.cursor() as cursor:
+
+        far_id = 288000
+
+        query = """
+        SELECT Requested_Source,
+               Requested_Destination,
+               Change_Service
+        FROM FarDetailsAll
+        WHERE Far_Id = %s
+        """
+
+        cursor.execute(query, (far_id,))
+
+        rows = cursor.fetchall()
+
+        for row in rows:
+            print(f"Requested_Source      : {row[0]}")
+            print(f"Requested_Destination : {row[1]}")
+            print(f"Change_Service        : {row[2]}")
+            print("-" * 60)
+
+finally:
+    conn.close()
+
