@@ -544,3 +544,151 @@ try:
 finally:
     conn.close()
 
+
+import subprocess
+import requests
+import time
+import re
+import threading
+import socket
+
+LOG_API = "https://10.191.171.12:5443/monitorServers/logs/ingest"
+
+# Dedup buffer
+log_buffer = {}
+
+# Lock for thread safety
+buffer_lock = threading.Lock()
+
+SERVER_IP = socket.gethostbyname(socket.gethostname())
+
+
+def add_log(broker_name, eg_name, error_message):
+
+    key = f"{broker_name}|{eg_name}|{error_message}"
+
+    with buffer_lock:
+
+        if key in log_buffer:
+            log_buffer[key]["count"] += 1
+        else:
+            log_buffer[key] = {
+                "server": SERVER_IP,
+                "broker_name": broker_name,
+                "eg_name": eg_name,
+                "error_message": error_message,
+                "count": 1
+            }
+
+
+def flush_logs():
+
+    global log_buffer
+
+    while True:
+
+        time.sleep(60)
+
+        with buffer_lock:
+
+            if not log_buffer:
+                continue
+
+            payload = list(log_buffer.values())
+
+        try:
+
+            response = requests.post(
+                LOG_API,
+                json=payload,
+                timeout=15,
+                verify=False
+            )
+
+            print(
+                f"Sent {len(payload)} unique logs "
+                f"Status={response.status_code}"
+            )
+
+            if response.status_code in [200, 201]:
+
+                with buffer_lock:
+                    log_buffer.clear()
+
+        except Exception as e:
+            print("Bulk send failed:", e)
+
+
+def stream_logs():
+
+    process = subprocess.Popen(
+        ["tail", "-F", "/var/log/user.log"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    for line in process.stdout:
+
+        try:
+
+            if "BIP" not in line:
+                continue
+
+            if not re.search(r"BIP\d+E", line):
+                continue
+
+            print("Matched Log")
+
+            # Example:
+            # BIP2322E: ...
+            # BROKER.EG
+
+            broker_name = line.split("(")[1].split(")")[0].split(".")[0]
+
+            eg_name = line.split("(")[1].split(")")[0].split(".")[1]
+
+            error_match = re.search(r"(BIP\d+E.*)", line)
+
+            error_message = (
+                error_match.group(1)
+                if error_match
+                else line.strip()
+            )
+
+            add_log(
+                broker_name,
+                eg_name,
+                error_message
+            )
+
+        except Exception as e:
+
+            print("Log parse error:", e)
+
+
+def log_worker():
+
+    while True:
+
+        try:
+
+            stream_logs()
+
+        except Exception as e:
+
+            print("Log Worker Error:", e)
+
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+
+    threading.Thread(
+        target=flush_logs,
+        daemon=True
+    ).start()
+
+    log_worker()
+
+
