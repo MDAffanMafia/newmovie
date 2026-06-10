@@ -692,3 +692,21 @@ if __name__ == "__main__":
     log_worker()
 
 
+result = await db.execute(
+    select(
+        modelsHistory.BrokerHistory.created_at,
+        modelsHistory.BrokerHistory.established
+    )
+    .where(
+        modelsHistory.BrokerHistory.serverId == server_id,
+        modelsHistory.BrokerHistory.brokerName == broker_name,
+        modelsHistory.BrokerHistory.created_at.between(
+            start_time,
+            end_time
+        )
+    )
+    .order_by(
+        modelsHistory.BrokerHistory.created_at.asc()
+    )
+)
+
