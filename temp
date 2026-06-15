@@ -710,3 +710,111 @@ result = await db.execute(
     )
 )
 
+from datetime import datetime
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+from fastapi import HTTPException
+
+async def get_server_logs_today(
+    db: AsyncSession,
+    server_id: int,
+    limit: int = 100,
+    offset: int = 0
+):
+    try:
+        # Verify server exists
+        server_result = await db.execute(
+            select(models.Server)
+            .where(models.Server.id == server_id)
+        )
+
+        server = server_result.scalar_one_or_none()
+
+        if not server:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Server {server_id} not found"
+            )
+
+        start_of_day = datetime.now().replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+
+        result = await db.execute(
+            select(models.userLogs)
+            .where(
+                models.userLogs.server_id == server_id,
+                models.userLogs.created_at >= start_of_day
+            )
+            .order_by(models.userLogs.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        logs = result.scalars().all()
+
+        return {
+            "serverId": server_id,
+            "count": len(logs),
+            "logs": [
+                {
+                    "id": log.id,
+                    "brokerName": log.broker_name,
+                    "egName": log.eg_name,
+                    "errorMessage": log.error_message,
+                    "createdAt": log.created_at
+                }
+                for log in logs
+            ]
+        }
+
+    except HTTPException:
+        raise
+
+    except SQLAlchemyError as e:
+        print(f"Database Error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Database error while fetching logs"
+        )
+
+    except Exception as e:
+        print(f"Unexpected Error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error"
+        )
+
+
+
+@router.get("/logs/{server_id}")
+async def get_server_logs(
+    server_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        return await dbOperations.get_server_logs_today(
+            db=db,
+            server_id=server_id,
+            limit=limit,
+            offset=offset
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(f"Router Error: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch logs"
+        )
+
