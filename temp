@@ -818,3 +818,5 @@ async def get_server_logs(
             detail="Failed to fetch logs"
         )
 
+curl -X GET \
+"http://10.191.171.12:5443/logs/1"
