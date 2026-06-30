@@ -820,3 +820,94 @@ async def get_server_logs(
 
 curl -X GET \
 "http://10.191.171.12:5443/logs/1"
+
+
+@csrf_exempt
+def certificateSyncGet(request):
+    if request.method != "POST":
+        return HttpResponse("Only POST allowed")
+
+    try:
+        data = json.loads(request.body)
+
+        certificates = data.get("certificates", {})
+        serverIp = data.get("system")
+
+        serverDetails = ServerDetails.objects.filter(
+            serverIP=serverIp["ip"]
+        ).order_by("-id").first()
+
+        if not serverDetails:
+            return HttpResponse("Server not found")
+
+        for cert_type_key, cert_type_value in certificates.items():
+
+            cert_type_obj, _ = CertificateTypes.objects.get_or_create(
+                certificateType=cert_type_key,
+                server=serverDetails
+            )
+
+            # cert_type_value is a list
+            for certy in cert_type_value:
+
+                # Iterate over every certificate in the dictionary
+                for cert_name_key, cert_entries in certy.items():
+
+                    # Skip error blocks
+                    if cert_name_key == "Error":
+                        continue
+
+                    cert_name_obj, _ = CertificateName.objects.get_or_create(
+                        certificateName=cert_name_key,
+                        certificateType=cert_type_obj
+                    )
+
+                    # -----------------------------
+                    # CASE 1 : Single certificate
+                    # -----------------------------
+                    if isinstance(cert_entries, dict) and "valid_from" in cert_entries:
+
+                        CertificateSubDetails.objects.update_or_create(
+                            certificateParent=cert_name_obj,
+                            alias=cert_entries.get("alias", ""),
+                            defaults={
+                                "certificateName": cert_name_key,
+                                "validFrom": cert_entries.get("valid_from", ""),
+                                "validTo": cert_entries.get("valid_to", ""),
+                                "owner": cert_entries.get("owner", ""),
+                                "fingerprint": cert_entries.get("fingerprint", ""),
+                                "fingerprintType": cert_entries.get("fingerprint_cert_type", "")
+                            }
+                        )
+
+                    # -----------------------------
+                    # CASE 2 : Multiple certificates
+                    # -----------------------------
+                    elif isinstance(cert_entries, dict):
+
+                        for sub_cert_name, cert in cert_entries.items():
+
+                            if sub_cert_name == "Error":
+                                continue
+
+                            if not isinstance(cert, dict):
+                                continue
+
+                            CertificateSubDetails.objects.update_or_create(
+                                certificateParent=cert_name_obj,
+                                alias=cert.get("alias", ""),
+                                defaults={
+                                    "certificateName": sub_cert_name,
+                                    "validFrom": cert.get("valid_from", ""),
+                                    "validTo": cert.get("valid_to", ""),
+                                    "owner": cert.get("owner", ""),
+                                    "fingerprint": cert.get("fingerprint", ""),
+                                    "fingerprintType": cert.get("fingerprint_cert_type", "")
+                                }
+                            )
+
+        return HttpResponse("Saved successfully")
+
+    except Exception as e:
+        print(e)
+        return HttpResponse(str(e))
