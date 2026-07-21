@@ -911,3 +911,131 @@ def certificateSyncGet(request):
     except Exception as e:
         print(e)
         return HttpResponse(str(e))
+
+
+
+
+№###№############
+
+CREATE TABLE mq_queue_manager (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    serverId INT NOT NULL,
+    qmgrName VARCHAR(100) NOT NULL,
+    status TINYINT(1),
+    deadLetterQueue VARCHAR(100),
+    commandServer TINYINT(1),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_qmgr_server
+        FOREIGN KEY (serverId)
+        REFERENCES application_status(id)
+        ON DELETE CASCADE,
+
+    UNIQUE KEY uq_server_qmgr (serverId, qmgrName),
+    INDEX idx_server (serverId),
+    INDEX idx_qmgr (qmgrName)
+);
+
+CREATE TABLE mq_channels (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    qmgrId INT NOT NULL,
+
+    channelName VARCHAR(100) NOT NULL,
+    channelType VARCHAR(20),
+    status VARCHAR(20),
+    subState VARCHAR(50),
+    xmitQueue VARCHAR(100),
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_channel_qmgr
+        FOREIGN KEY (qmgrId)
+        REFERENCES mq_queue_manager(id)
+        ON DELETE CASCADE,
+
+    UNIQUE KEY uq_qmgr_channel (qmgrId, channelName),
+    INDEX idx_channel (channelName)
+);
+
+
+CREATE TABLE mq_queues (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    qmgrId INT NOT NULL,
+
+    queueName VARCHAR(100) NOT NULL,
+    currentDepth INT,
+    maxDepth INT,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_queue_qmgr
+        FOREIGN KEY (qmgrId)
+        REFERENCES mq_queue_manager(id)
+        ON DELETE CASCADE,
+
+    UNIQUE KEY uq_qmgr_queue (qmgrId, queueName),
+    INDEX idx_queue (queueName)
+);
+
+
+CREATE TABLE mq_queues (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    qmgrId INT NOT NULL,
+
+    queueName VARCHAR(100) NOT NULL,
+    currentDepth INT,
+    maxDepth INT,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_queue_qmgr
+        FOREIGN KEY (qmgrId)
+        REFERENCES mq_queue_manager(id)
+        ON DELETE CASCADE,
+
+    UNIQUE KEY uq_qmgr_queue (qmgrId, queueName),
+    INDEX idx_queue (queueName)
+);
+
+CREATE TABLE mq_listeners (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    qmgrId INT NOT NULL,
+
+    listenerName VARCHAR(100),
+    port INT,
+    status TINYINT(1),
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_listener_qmgr
+        FOREIGN KEY (qmgrId)
+        REFERENCES mq_queue_manager(id)
+        ON DELETE CASCADE,
+
+    UNIQUE KEY uq_qmgr_listener (qmgrId, listenerName)
+);
+
+CREATE TABLE mq_error_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    qmgrId INT NOT NULL,
+
+    errorCode VARCHAR(20),
+    message TEXT,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_error_qmgr
+        FOREIGN KEY (qmgrId)
+        REFERENCES mq_queue_manager(id)
+        ON DELETE CASCADE,
+
+    INDEX idx_created (created_at),
+    INDEX idx_qmgr (qmgrId)
+);
+
