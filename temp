@@ -1104,7 +1104,7 @@ class MQListener(Base):
     port = Column(Integer)
     status = Column(Boolean)
 
-    queueManager = relationship("QueueManager", back_populates="listeners")
+    queueManager = relationship("QueueManager", back_populates="listeners")+
 
 
 
