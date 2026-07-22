@@ -1039,3 +1039,72 @@ CREATE TABLE mq_error_logs (
     INDEX idx_qmgr (qmgrId)
 );
 
+
+______&__&&&&&-----+++++((()&---
+
+
+class QueueManager(Base):
+    __tablename__ = "mq_queue_manager"
+
+    id = Column(Integer, primary_key=True)
+    serverId = Column(Integer, ForeignKey("application_status.id"), index=True)
+
+    qmgrName = Column(String(100), index=True)
+    status = Column(Boolean)
+    deadLetterQueue = Column(String(100))
+    commandServer = Column(Boolean)
+
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    server = relationship("Server", back_populates="queueManagers")
+    channels = relationship("MQChannel", back_populates="queueManager", cascade="all, delete-orphan")
+    queues = relationship("MQQueue", back_populates="queueManager", cascade="all, delete-orphan")
+    listeners = relationship("MQListener", back_populates="queueManager", cascade="all, delete-orphan")
+
+
+class MQChannel(Base):
+    __tablename__ = "mq_channels"
+
+    id = Column(Integer, primary_key=True)
+
+    qmgrId = Column(Integer, ForeignKey("mq_queue_manager.id"), index=True)
+
+    channelName = Column(String(100), index=True)
+    channelType = Column(String(20))
+    status = Column(String(20))
+    subState = Column(String(50))
+    xmitQueue = Column(String(100))
+
+    queueManager = relationship("QueueManager", back_populates="channels")
+
+
+
+class MQQueue(Base):
+    __tablename__ = "mq_queues"
+
+    id = Column(Integer, primary_key=True)
+
+    qmgrId = Column(Integer, ForeignKey("mq_queue_manager.id"), index=True)
+
+    queueName = Column(String(100), index=True)
+    currentDepth = Column(Integer)
+    maxDepth = Column(Integer)
+
+    queueManager = relationship("QueueManager", back_populates="queues")
+
+
+class MQListener(Base):
+    __tablename__ = "mq_listeners"
+
+    id = Column(Integer, primary_key=True)
+
+    qmgrId = Column(Integer, ForeignKey("mq_queue_manager.id"), index=True)
+
+    listenerName = Column(String(100))
+    port = Column(Integer)
+    status = Column(Boolean)
+
+    queueManager = relationship("QueueManager", back_populates="listeners")
+
+
+
