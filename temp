@@ -1106,5 +1106,161 @@ class MQListener(Base):
 
     queueManager = relationship("QueueManager", back_populates="listeners")+
 
+from sqlalchemy import select
+from models import (
+    Server,
+    QueueManager,
+    MQChannel,
+    MQQueue,
+    MQListener,
+    MQErrorLog
+)
+
+async def create_mq_data(db: AsyncSession, payload):
+
+    # Find server
+    result = await db.execute(
+        select(Server).where(Server.ip == payload["server"])
+    )
+
+    server = result.scalar_one_or_none()
+
+    if server is None:
+        raise Exception(f"Server {payload['server']} not found")
+
+    for qm in payload.get("queueManagers", []):
+
+        # ---------------- Queue Manager ---------------- #
+
+        result = await db.execute(
+            select(QueueManager).where(
+                QueueManager.serverId == server.id,
+                QueueManager.qmgrName == qm["qmgrName"]
+            )
+        )
+
+        qmgr = result.scalar_one_or_none()
+
+        if qmgr:
+
+            qmgr.status = qm.get("status")
+            qmgr.deadLetterQueue = qm.get("deadLetterQueue")
+            qmgr.commandServer = qm.get("commandServer")
+
+        else:
+
+            qmgr = QueueManager(
+                serverId=server.id,
+                qmgrName=qm["qmgrName"],
+                status=qm.get("status"),
+                deadLetterQueue=qm.get("deadLetterQueue"),
+                commandServer=qm.get("commandServer")
+            )
+
+            db.add(qmgr)
+            await db.flush()
+
+        # ---------------- Channels ---------------- #
+
+        for channel in qm.get("channels", []):
+
+            result = await db.execute(
+                select(MQChannel).where(
+                    MQChannel.qmgrId == qmgr.id,
+                    MQChannel.channelName == channel["channelName"]
+                )
+            )
+
+            existing = result.scalar_one_or_none()
+
+            if existing:
+
+                existing.channelType = channel.get("channelType")
+                existing.status = channel.get("status")
+                existing.subState = channel.get("subState")
+                existing.xmitQueue = channel.get("xmitQueue")
+
+            else:
+
+                db.add(
+                    MQChannel(
+                        qmgrId=qmgr.id,
+                        channelName=channel["channelName"],
+                        channelType=channel.get("channelType"),
+                        status=channel.get("status"),
+                        subState=channel.get("subState"),
+                        xmitQueue=channel.get("xmitQueue")
+                    )
+                )
+
+        # ---------------- Queues ---------------- #
+
+        for queue in qm.get("queues", []):
+
+            result = await db.execute(
+                select(MQQueue).where(
+                    MQQueue.qmgrId == qmgr.id,
+                    MQQueue.queueName == queue["queueName"]
+                )
+            )
+
+            existing = result.scalar_one_or_none()
+
+            if existing:
+
+                existing.currentDepth = queue.get("currentDepth")
+                existing.maxDepth = queue.get("maxDepth")
+
+            else:
+
+                db.add(
+                    MQQueue(
+                        qmgrId=qmgr.id,
+                        queueName=queue["queueName"],
+                        currentDepth=queue.get("currentDepth"),
+                        maxDepth=queue.get("maxDepth")
+                    )
+                )
+
+        # ---------------- Listeners ---------------- #
+
+        for listener in qm.get("listeners", []):
+
+            result = await db.execute(
+                select(MQListener).where(
+                    MQListener.qmgrId == qmgr.id,
+                    MQListener.listenerName == listener["listenerName"]
+                )
+            )
+
+            existing = result.scalar_one_or_none()
+
+            if existing:
+
+                existing.port = listener.get("port")
+                existing.status = listener.get("status")
+
+            else:
+
+                db.add(
+                    MQListener(
+                        qmgrId=qmgr.id,
+                        listenerName=listener["listenerName"],
+                        port=listener.get("port"),
+                        status=listener.get("status")
+                    )
+                )
+
+        # ---------------- Error Logs ---------------- #
+
+        for error in qm.get("errors", []):
+
+            db.add(
+                MQErrorLog(
+                    qmgrId=qmgr.id,
+                    errorCode=error.get("errorCode"),
+                    message=error.get("message")
+                )
+            )
 
 
