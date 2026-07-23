@@ -1,3 +1,116 @@
+
+from sqlalchemy import delete, select
+from app import models
+
+
+async def create_mq_data(db: AsyncSession, payload: dict):
+    server_name = payload["serverName"]
+
+    # --------------------------------------------------
+    # Create server if it doesn't exist
+    # --------------------------------------------------
+    result = await db.execute(
+        select(models.Server).where(
+            models.Server.serverHostName == server_name
+        )
+    )
+    server = result.scalar_one_or_none()
+
+    if server is None:
+        server = models.Server(
+            serverHostName=server_name,
+            ip=payload.get("ip"),
+            lastSeen=payload.get("lastSeen"),
+            severity=3
+        )
+        db.add(server)
+        await db.flush()
+    else:
+        server.lastSeen = payload.get("lastSeen")
+
+    # --------------------------------------------------
+    # Delete previous snapshot
+    # --------------------------------------------------
+    await db.execute(
+        delete(models.MQChannel).where(
+            models.MQChannel.serverId == server.id
+        )
+    )
+
+    await db.execute(
+        delete(models.MQQueue).where(
+            models.MQQueue.serverId == server.id
+        )
+    )
+
+    await db.execute(
+        delete(models.QueueManager).where(
+            models.QueueManager.serverId == server.id
+        )
+    )
+
+    # --------------------------------------------------
+    # Insert Queue Managers
+    # --------------------------------------------------
+    for qm_name, qm_data in payload["mqManagerStatus"].items():
+
+        qm = models.QueueManager(
+            serverId=server.id,
+            queueManagerName=qm_name,
+            isRunning=True
+        )
+
+        db.add(qm)
+        await db.flush()
+
+        # -----------------------------
+        # Queue Depths
+        # -----------------------------
+        queue_depths = qm_data.get("QueuesDepth", {})
+
+        for queue_name, depth in queue_depths.items():
+
+            db.add(
+                models.MQQueue(
+                    serverId=server.id,
+                    queueManagerId=qm.id,
+                    queueName=queue_name,
+                    currentDepth=int(depth)
+                )
+            )
+
+        # -----------------------------
+        # Channels (only sender servers)
+        # -----------------------------
+        channels = qm_data.get("ChannelStatus")
+
+        if channels:
+            for channel_name, status in channels.items():
+
+                db.add(
+                    models.MQChannel(
+                        serverId=server.id,
+                        queueManagerId=qm.id,
+                        channelName=channel_name,
+                        status=status
+                    )
+                )
+
+    await db.commit()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 your_app.modelsfrom django.http import JsonResponse
 from .models import ServerDetails, CertificateTypes, CertificateName, CertificateSubDetails
 
