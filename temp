@@ -1,4 +1,51 @@
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app import dbOperations
+
+router = APIRouter(prefix="/mq", tags=["MQ"])
+
+
+@router.post("/ingest")
+async def ingest_mq(
+    payload: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        await dbOperations.create_mq_data(db, payload)
+
+        return {
+            "status": "success",
+            "message": "MQ data ingested successfully"
+        }
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 from sqlalchemy import delete, select
 from app import models
 
