@@ -1,4 +1,136 @@
 
+
+
+
+
+
+
+
+
+
+from sqlalchemy import select, delete
+from app import models
+
+async def create_mq_data(db: AsyncSession, payload: dict):
+
+    server_name = payload["HostName"]
+
+    # ----------------------------------------------------
+    # Create / Update Server
+    # ----------------------------------------------------
+
+    result = await db.execute(
+        select(models.Server).where(
+            models.Server.serverHostName == server_name
+        )
+    )
+
+    server = result.scalar_one_or_none()
+
+    if server is None:
+        server = models.Server(
+            serverHostName=server_name,
+            ip=payload.get("ip"),
+            lastSeen=payload.get("lastSeen"),
+            severity=3
+        )
+
+        db.add(server)
+        await db.flush()
+
+    else:
+        server.lastSeen = payload.get("lastSeen")
+        server.ip = payload.get("ip")
+
+    # ----------------------------------------------------
+    # Existing Queue Managers
+    # ----------------------------------------------------
+
+    result = await db.execute(
+        select(models.QueueManager).where(
+            models.QueueManager.serverId == server.id
+        )
+    )
+
+    existing_qms = {
+        qm.qmName: qm
+        for qm in result.scalars().all()
+    }
+
+    incoming_qms = payload.get("mqManagerStatus", {})
+
+    # ----------------------------------------------------
+    # Delete Queue Managers removed from payload
+    # ----------------------------------------------------
+
+    for qm_name, qm in existing_qms.items():
+
+        if qm_name not in incoming_qms:
+
+            await db.delete(qm)
+
+    # ----------------------------------------------------
+    # Process Queue Managers
+    # ----------------------------------------------------
+
+    for qm_name, qm_data in incoming_qms.items():
+
+        qm = existing_qms.get(qm_name)
+
+        if qm is None:
+
+            qm = models.QueueManager(
+                serverId=server.id,
+                qmName=qm_name,
+                status=True,
+                deadLetterQueue=None,
+                commandServer=None
+            )
+
+            db.add(qm)
+            await db.flush()
+
+        else:
+
+            qm.status = True
+
+        # --------------------------------------------
+        # Delete old snapshot for this Queue Manager
+        # --------------------------------------------
+
+        await db.execute(
+            delete(models.MQQueue).where(
+                models.MQQueue.qmgrId == qm.id
+            )
+        )
+
+        await db.execute(
+            delete(models.MQChannel).where(
+                models.MQChannel.qmgrId == qm.id
+            )
+        )
+
+        # Part 2 continues from here...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
