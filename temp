@@ -1,5 +1,50 @@
 
+# ----------------------------------------------------
+        # Insert Queue Depths
+        # ----------------------------------------------------
 
+        queue_depths = qm_data.get("QueuesDepth", {})
+
+        for queue_name, depth in queue_depths.items():
+
+            queue = models.MQQueue(
+                qmgrId=qm.id,
+                queueName=queue_name,
+                currentDepth=int(depth),
+                maxDepth=0
+            )
+
+            db.add(queue)
+
+        # ----------------------------------------------------
+        # Insert Channel Status (Sender MQ only)
+        # ----------------------------------------------------
+
+        channel_status = qm_data.get("ChannelStatus", {})
+
+        for channel_name, status in channel_status.items():
+
+            channel = models.MQChannel(
+                qmgrId=qm.id,
+                channelName=channel_name,
+                channelType=None,
+                status=status,
+                subState=None,
+                xmitQueue=None
+            )
+
+            db.add(channel)
+
+    # ----------------------------------------------------
+    # Commit everything
+    # ----------------------------------------------------
+
+    await db.commit()
+
+    return {
+        "status": "success",
+        "message": "MQ data ingested successfully"
+    }
 
 
 
