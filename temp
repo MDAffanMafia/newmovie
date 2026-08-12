@@ -1,4 +1,79 @@
 
+
+# routers/mq.py
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app import schemas
+from app import dboperations
+
+
+router = APIRouter(
+    prefix="/mq",
+    tags=["MQ Dashboard"]
+)
+
+
+@router.post("/dashboard/queues")
+async def get_mq_dashboard_queues(
+    request: schemas.MQQueueDashboardRequest,
+    db: AsyncSession = Depends(get_db)
+):
+
+    try:
+
+        data = await dboperations.get_mq_dashboard_queues(
+            db=db,
+            layer_id=request.layer_id,
+            queue_type=request.queue_type,
+            queue_name=request.queue_name
+        )
+
+        return {
+            "status": True,
+            "layerId": request.layer_id,
+            "queueType": request.queue_type,
+            "count": len(data),
+            "data": data
+        }
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch MQ queue data"
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # dboperations.py
 
 from sqlalchemy import select
