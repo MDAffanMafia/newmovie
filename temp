@@ -1,4 +1,124 @@
 
+# dboperations.py
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app import models
+
+
+async def get_mq_dashboard_queues(
+    db: AsyncSession,
+    layer_id: int,
+    queue_type: str,
+    queue_name: str | None = None
+):
+
+    query = (
+        select(
+            models.MQQueue,
+            models.QueueManager.qmgrName,
+            models.Server.serverHostName,
+            models.Server.ip
+        )
+        .join(
+            models.QueueManager,
+            models.MQQueue.qmgrId == models.QueueManager.id
+        )
+        .join(
+            models.Server,
+            models.QueueManager.serverId == models.Server.id
+        )
+        .where(
+            models.Server.layer_id == layer_id
+        )
+    )
+
+    # ---------------------------------------------------------
+    # Queue classification
+    # ---------------------------------------------------------
+
+    if queue_type == "retry":
+
+        query = query.where(
+            models.MQQueue.queueName.like("RETRY_%")
+        )
+
+    elif queue_type == "exception":
+
+        query = query.where(
+            models.MQQueue.queueName.like("EXCEPTION_%")
+        )
+
+    elif queue_type == "receiver":
+
+        query = query.where(
+            ~models.MQQueue.queueName.like("RETRY_%"),
+            ~models.MQQueue.queueName.like("EXCEPTION_%")
+        )
+
+    else:
+
+        raise ValueError(
+            "queue_type must be receiver, retry or exception"
+        )
+
+    # ---------------------------------------------------------
+    # Optional queue-name filter
+    # ---------------------------------------------------------
+
+    if queue_name:
+        query = query.where(
+            models.MQQueue.queueName.like(
+                f"%{queue_name}%"
+            )
+        )
+
+    # ---------------------------------------------------------
+    # Execute
+    # ---------------------------------------------------------
+
+    result = await db.execute(query)
+
+    rows = result.all()
+
+    # ---------------------------------------------------------
+    # Response
+    # ---------------------------------------------------------
+
+    data = []
+
+    for queue, qmgr_name, hostname, ip in rows:
+
+        current_depth = queue.currentDepth or 0
+        prev_depth = queue.prevDepth or 0
+
+        data.append({
+            "queueManager": qmgr_name,
+            "server": hostname,
+            "ip": ip,
+            "queueName": queue.queueName,
+            "currentDepth": current_depth,
+            "prevDepth": prev_depth,
+            "depthChange": current_depth - prev_depth,
+            "maxDepth": queue.maxDepth
+        })
+
+    return data
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ----------------------------------------------------
         # Insert Queue Depths
         # ----------------------------------------------------
