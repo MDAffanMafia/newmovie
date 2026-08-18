@@ -1,4 +1,111 @@
 
+import asyncio
+import logging
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    async_sessionmaker
+)
+
+from app.models import (
+    Isolator,
+    RestartingUsersData
+)
+
+from app.config import DATABASE_URL
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+)
+
+SessionLocal = async_sessionmaker(
+    engine,
+    expire_on_commit=False
+)
+
+
+async def invalidate_restarting_users():
+
+    async with SessionLocal() as db:
+
+        try:
+
+            # Servers whose isolator is currently UP
+            active_servers = (
+                select(Isolator.serverId)
+                .where(
+                    Isolator.isUp == True
+                )
+            )
+
+            # Mark their current restarting-user record
+            # as no longer current.
+            stmt = (
+                update(RestartingUsersData)
+                .where(
+                    RestartingUsersData.serverId.in_(
+                        active_servers
+                    ),
+                    RestartingUsersData.isCurrent == True
+                )
+                .values(
+                    isCurrent=False
+                )
+            )
+
+            result = await db.execute(stmt)
+
+            await db.commit()
+
+            logger.info(
+                "Invalidated %d restarting-user records",
+                result.rowcount
+            )
+
+        except Exception:
+
+            await db.rollback()
+
+            logger.exception(
+                "Failed to invalidate restarting-user records"
+            )
+
+
+async def main():
+
+    try:
+        await invalidate_restarting_users()
+
+    finally:
+        await engine.dispose()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # routers/mq.py
 
