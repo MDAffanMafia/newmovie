@@ -1,3 +1,77 @@
+import subprocess
+import re
+
+
+def get_connections_by_port():
+    connections = {}
+
+    # Run netstat
+    result = subprocess.run(
+        ["netstat", "-ant"],
+        capture_output=True,
+        text=True,
+        check=True
+    )
+
+    for line in result.stdout.splitlines():
+
+        parts = line.split()
+
+        # Expected:
+        # tcp  0  0 10.188.24.163:1415  10.188.25.58:38364  ESTABLISHED
+        if len(parts) < 5:
+            continue
+
+        local_address = parts[3]
+        remote_address = parts[4]
+
+        # Get local port
+        # Only ports starting with 14
+        match = re.search(r":(14\d{2})$", local_address)
+
+        if not match:
+            continue
+
+        port = match.group(1)
+
+        # Get remote IP
+        remote_ip = remote_address.rsplit(":", 1)[0]
+
+        # Apply IP filters
+        if (
+            remote_ip.startswith("10.191.171.")
+            or remote_ip.startswith("10.188.2")
+        ):
+
+            # Create list for port if it doesn't exist
+            if port not in connections:
+                connections[port] = []
+
+            # Avoid duplicate IPs
+            if remote_ip not in connections[port]:
+                connections[port].append(remote_ip)
+
+    return connections
+
+
+if __name__ == "__main__":
+
+    connections = get_connections_by_port()
+
+    print(connections)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 import asyncio
 import logging
