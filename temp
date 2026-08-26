@@ -1,3 +1,98 @@
+async def get_mq_pointings_by_layer(
+    db: AsyncSession,
+    layer_name: str
+):
+    query = (
+        select(
+            models.Server.serverHostName,
+            models.Server.ip,
+            models.Pointings.channelName,
+            models.Pointings.pointingIp
+        )
+        .join(
+            models.Layer,
+            models.Server.layer_id == models.Layer.layer_id
+        )
+        .join(
+            models.Pointings,
+            models.Pointings.serverId == models.Server.id
+        )
+        .where(
+            models.Layer.layer_name == layer_name
+        )
+        .order_by(
+            models.Server.serverHostName,
+            models.Pointings.channelName
+        )
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    servers = {}
+
+    for server_name, server_ip, port, pointing_ip in rows:
+
+        if server_name not in servers:
+            servers[server_name] = {
+                "serverName": server_name,
+                "ip": server_ip,
+                "pointings": {}
+            }
+
+        servers[server_name]["pointings"][str(port)] = (
+            pointing_ip.split(",") if pointing_ip else []
+        )
+
+    return list(servers.values())
+
+
+
+@router.post("/mqDashboard/pointings")
+async def get_mq_pointings(
+    request: schemas.MQPointingsRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        data = await operations.get_mq_pointings_by_layer(
+            db,
+            request.layer_name
+        )
+
+        return {
+            "status": True,
+            "layerName": request.layer_name,
+            "servers": data
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import subprocess
 import re
 
