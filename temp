@@ -1,3 +1,87 @@
+import csv
+import mysql.connector
+
+# -----------------------------
+# Database configuration
+# -----------------------------
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "YOUR_DB_USER",
+    "password": "YOUR_DB_PASSWORD",
+    "database": "YOUR_DATABASE"
+}
+
+OUTPUT_FILE = "/home/scripts/FarDetailsAll.csv"
+
+# -----------------------------
+# SQL query
+# -----------------------------
+QUERY = """
+SELECT *
+FROM FarDetailsAll
+WHERE STR_TO_DATE(Expires, '%Y-%m-%d') > CURDATE();
+"""
+
+try:
+    # Connect to MySQL
+    conn = mysql.connector.connect(**DB_CONFIG)
+
+    cursor = conn.cursor()
+
+    print("Connected to MySQL")
+
+    # Execute query
+    cursor.execute(QUERY)
+
+    # Get column names
+    columns = [column[0] for column in cursor.description]
+
+    # Open CSV file
+    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as csv_file:
+
+        writer = csv.writer(csv_file)
+
+        # Write header
+        writer.writerow(columns)
+
+        # Write data
+        row_count = 0
+
+        for row in cursor:
+            writer.writerow(row)
+            row_count += 1
+
+    print("Export completed successfully")
+    print("Rows exported:", row_count)
+    print("CSV file:", OUTPUT_FILE)
+
+except mysql.connector.Error as e:
+    print("MySQL error:", e)
+
+except Exception as e:
+    print("Error:", e)
+
+finally:
+    try:
+        cursor.close()
+        conn.close()
+        print("Database connection closed")
+    except:
+        pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 async def get_mq_pointings_by_layer(
     db: AsyncSession,
     layer_name: str
