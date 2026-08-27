@@ -1,3 +1,91 @@
+import pymysql
+import csv
+
+# -----------------------------
+# Database configuration
+# -----------------------------
+DB_HOST = "localhost"
+DB_USER = "YOUR_DB_USER"
+DB_PASSWORD = "YOUR_DB_PASSWORD"
+DB_NAME = "YOUR_DATABASE"
+
+OUTPUT_FILE = "/home/scripts/FarDetailsAll.csv"
+
+# -----------------------------
+# SQL Query
+# -----------------------------
+QUERY = """
+SELECT *
+FROM FarDetailsAll
+WHERE STR_TO_DATE(Expires, '%%Y-%%m-%%d') > CURDATE();
+"""
+
+try:
+    # Connect to MySQL
+    connection = pymysql.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        cursorclass=pymysql.cursors.Cursor
+    )
+
+    print("Connected to MySQL")
+
+    with connection.cursor() as cursor:
+
+        cursor.execute(QUERY)
+
+        # Get column names
+        columns = [desc[0] for desc in cursor.description]
+
+        # Open CSV
+        with open(
+            OUTPUT_FILE,
+            "w",
+            newline="",
+            encoding="utf-8"
+        ) as csv_file:
+
+            writer = csv.writer(csv_file)
+
+            # Header
+            writer.writerow(columns)
+
+            # Data
+            row_count = 0
+
+            for row in cursor:
+                writer.writerow(row)
+                row_count += 1
+
+    print("Export completed successfully")
+    print("Rows exported:", row_count)
+    print("CSV file:", OUTPUT_FILE)
+
+except pymysql.MySQLError as e:
+    print("MySQL error:", e)
+
+except Exception as e:
+    print("Error:", e)
+
+finally:
+    try:
+        connection.close()
+        print("Database connection closed")
+    except:
+        pass
+
+
+
+
+
+
+
+
+
+
+
 import csv
 import mysql.connector
 
