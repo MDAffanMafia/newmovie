@@ -1,3 +1,54 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app import schemas, operations
+from app.database import get_db
+
+router = APIRouter()
+
+
+@router.post("/mqDashboard/sender")
+async def get_mq_sender(
+    request: schemas.MQDashboardRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        data = await operations.get_mq_sender_data(
+            db=db,
+            layer_name=request.layer_name
+        )
+
+        return {
+            "status": True,
+            "layerName": request.layer_name,
+            "data": data
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch MQ sender data"
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 async def get_mq_sender_data(
     db: AsyncSession,
