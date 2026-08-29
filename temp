@@ -1,3 +1,89 @@
+
+async def get_mq_sender_data(
+    db: AsyncSession,
+    layer_name: str
+):
+
+    # -------------------------
+    # QUEUES
+    # -------------------------
+    queue_query = (
+        select(
+            models.Server.serverHostName,
+            models.Server.ip,
+            models.MQQueueManager.qmgrName,
+            models.MQQueue.queueName,
+            models.MQQueue.currentDepth,
+            models.MQQueue.maxDepth
+        )
+        .join(
+            models.Layer,
+            models.Server.layer_id == models.Layer.layer_id
+        )
+        .join(
+            models.MQQueueManager,
+            models.MQQueueManager.serverId == models.Server.id
+        )
+        .join(
+            models.MQQueue,
+            models.MQQueue.qmgrId == models.MQQueueManager.id
+        )
+        .where(
+            models.Layer.layer_name == layer_name
+        )
+    )
+
+    # -------------------------
+    # CHANNELS
+    # -------------------------
+    channel_query = (
+        select(
+            models.Server.serverHostName,
+            models.Server.ip,
+            models.MQQueueManager.qmgrName,
+            models.MQChannel.channelName,
+            models.MQChannel.status
+        )
+        .join(
+            models.Layer,
+            models.Server.layer_id == models.Layer.layer_id
+        )
+        .join(
+            models.MQQueueManager,
+            models.MQQueueManager.serverId == models.Server.id
+        )
+        .join(
+            models.MQChannel,
+            models.MQChannel.qmgrId == models.MQQueueManager.id
+        )
+        .where(
+            models.Layer.layer_name == layer_name
+        )
+    )
+
+    queue_result = await db.execute(queue_query)
+    channel_result = await db.execute(channel_query)
+
+    return {
+        "queues": queue_result.all(),
+        "channels": channel_result.all()
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import pymysql
 import csv
 
